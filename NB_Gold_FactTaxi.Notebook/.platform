@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "NB_Gold_FactTaxi",
+    "description": ""
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "1e5bcdb1-aa11-88b4-4d12-d314ea979352"
+  }
+}

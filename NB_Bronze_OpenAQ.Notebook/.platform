@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "NB_Bronze_OpenAQ",
+    "description": "Ingest OpenAQ history into bronze lakehouse tables"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "b9f0cbf1-4f91-4b7e-9b4e-4e2c8a9d9f01"
+  }
+}

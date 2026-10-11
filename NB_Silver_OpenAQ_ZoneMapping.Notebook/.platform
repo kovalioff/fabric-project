@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "NB_Silver_OpenAQ_ZoneMapping",
+    "description": "Extracting coordinates"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "ac02c4f3-9dc6-89c9-4936-96ad377fc3b6"
+  }
+}

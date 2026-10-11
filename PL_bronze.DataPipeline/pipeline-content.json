@@ -1,0 +1,158 @@
+{
+  "properties": {
+    "activities": [
+      {
+        "type": "TridentNotebook",
+        "typeProperties": {
+          "notebookId": "b9f0cbf1-4f91-4b7e-9b4e-4e2c8a9d9f01",
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "parameters": {
+            "openaq_api_key": {
+              "value": {
+                "value": "@pipeline().parameters.OpenAQApiKey",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "history_days": {
+              "value": "730",
+              "type": "string"
+            },
+            "page_limit": {
+              "value": "1000",
+              "type": "string"
+            }
+          }
+        },
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 3,
+          "retryIntervalInSeconds": 30,
+          "secureInput": true,
+          "secureOutput": false
+        },
+        "name": "load openaq",
+        "dependsOn": []
+      },
+      {
+        "type": "RefreshDataflow",
+        "typeProperties": {
+          "dataflowId": "9a17e0a2-e41a-9627-49b5-c42ff6a63218",
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "notifyOption": "NoNotification",
+          "dataflowType": "DataflowFabric",
+          "executeMashupQueriesOnly": true
+        },
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 3,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "load ecb",
+        "dependsOn": []
+      },
+      {
+        "type": "RefreshDataflow",
+        "typeProperties": {
+          "dataflowId": "bd8aa48a-7969-9ed9-47c5-070fd4a13628",
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "notifyOption": "NoNotification",
+          "dataflowType": "DataflowFabric",
+          "executeMashupQueriesOnly": true
+        },
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 3,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "load gdp",
+        "dependsOn": []
+      },
+      {
+        "type": "Copy",
+        "typeProperties": {
+          "source": {
+            "type": "BinarySource",
+            "formatSettings": {
+              "type": "BinaryReadSettings"
+            },
+            "storeSettings": {
+              "type": "HttpReadSettings",
+              "requestMethod": "GET"
+            },
+            "datasetSettings": {
+              "type": "Binary",
+              "typeProperties": {
+                "location": {
+                  "type": "HttpServerLocation",
+                  "relativeUrl": {
+                    "value": "@concat('trip-data/yellow_tripdata_', formatDateTime(subtractFromTime(utcNow(), 2, 'Month'), 'yyyy-MM'), '.parquet')",
+                    "type": "Expression"
+                  }
+                }
+              },
+              "externalReferences": {
+                "connection": "6aa63666-3be9-4670-9f3c-eaf12b0b513e"
+              },
+              "annotations": []
+            }
+          },
+          "sink": {
+            "type": "BinarySink",
+            "storeSettings": {
+              "type": "LakehouseWriteSettings"
+            },
+            "datasetSettings": {
+              "type": "Binary",
+              "typeProperties": {
+                "location": {
+                  "type": "LakehouseLocation",
+                  "folderPath": "bronze_taxi",
+                  "fileName": {
+                    "value": "@concat('yellow_tripdata_', formatDateTime(subtractFromTime(utcNow(), 2, 'Month'), 'yyyy-MM'), '.parquet')",
+                    "type": "Expression"
+                  }
+                }
+              },
+              "connectionSettings": {
+                "name": "lakehouse",
+                "properties": {
+                  "type": "Lakehouse",
+                  "typeProperties": {
+                    "artifactId": "73cfe98f-305c-bd53-452d-40aa3163ca5c",
+                    "workspaceId": "00000000-0000-0000-0000-000000000000",
+                    "rootFolder": "Files"
+                  },
+                  "externalReferences": {
+                    "connection": "a24e7faa-ce6b-41f9-a830-94792f9dc319"
+                  },
+                  "annotations": []
+                }
+              },
+              "annotations": []
+            }
+          },
+          "enableStaging": false
+        },
+        "policy": {
+          "timeout": "0.12:00:00",
+          "retry": 3,
+          "retryIntervalInSeconds": 30,
+          "secureInput": false,
+          "secureOutput": false
+        },
+        "name": "load taxi",
+        "dependsOn": []
+      }
+    ],
+    "parameters": {
+      "OpenAQApiKey": {
+        "type": "String"
+      }
+    }
+  }
+}

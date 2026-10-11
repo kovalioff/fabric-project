@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Warehouse",
+    "displayName": "warehouse",
+    "description": "Warehouse views that mirror the lakehouse gold star schema"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "6c40991a-8d71-4c27-a770-b3b58146fd37"
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "properties": {
+    "jobMode": "Batch",
+    "source": {
+      "type": "DelimitedText",
+      "connectionSettings": {
+        "type": "HttpServer",
+        "externalReferences": {
+          "connection": "846894e0-7b65-4f94-a9e9-3ed887afb90d"
+        }
+      }
+    },
+    "destination": {
+      "type": "LakehouseTable",
+      "connectionSettings": {
+        "type": "Lakehouse",
+        "typeProperties": {
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "artifactId": "73cfe98f-305c-bd53-452d-40aa3163ca5c",
+          "rootFolder": "Tables"
+        }
+      }
+    },
+    "policy": {
+      "timeout": "0.12:00:00",
+      "retry": 0
+    }
+  },
+  "activities": [
+    {
+      "id": "fc73685b-fca1-4628-8325-bc8e439ea189",
+      "properties": {
+        "source": {
+          "datasetSettings": {
+            "location": {
+              "type": "HttpServerLocation"
+            },
+            "columnDelimiter": ",",
+            "escapeChar": "\\",
+            "firstRowAsHeader": true,
+            "quoteChar": "\""
+          },
+          "storeSettings": {
+            "requestMethod": "GET"
+          },
+          "formatSettings": {}
+        },
+        "destination": {
+          "writeBehavior": "Append",
+          "datasetSettings": {
+            "schema": "dbo",
+            "table": "HttpServerFile"
+          },
+          "applyVOrder": false
+        },
+        "enableStaging": false,
+        "translator": {
+          "type": "TabularTranslator"
+        },
+        "typeConversionSettings": {
+          "typeConversion": {
+            "allowDataTruncation": true,
+            "treatBooleanAsNumber": false
+          }
+        }
+      }
+    }
+  ]
+}
