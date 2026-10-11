@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "NB_Bronze_Taxi"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "adf6e7ab-da36-4568-a5c4-6341e161f460"
+  }
+}

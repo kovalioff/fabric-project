@@ -14,8 +14,32 @@
               },
               "type": "string"
             },
-            "history_days": {
-              "value": "730",
+            "key_vault_url": {
+              "value": {
+                "value": "@pipeline().parameters.KeyVaultUrl",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "secret_name": {
+              "value": {
+                "value": "@pipeline().parameters.OpenAQSecretName",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "start_date": {
+              "value": {
+                "value": "@pipeline().parameters.StartDate",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "end_date": {
+              "value": {
+                "value": "@pipeline().parameters.EndDate",
+                "type": "Expression"
+              },
               "type": "string"
             },
             "page_limit": {
@@ -73,70 +97,26 @@
         "dependsOn": []
       },
       {
-        "type": "Copy",
+        "type": "TridentNotebook",
         "typeProperties": {
-          "source": {
-            "type": "BinarySource",
-            "formatSettings": {
-              "type": "BinaryReadSettings"
-            },
-            "storeSettings": {
-              "type": "HttpReadSettings",
-              "requestMethod": "GET"
-            },
-            "datasetSettings": {
-              "type": "Binary",
-              "typeProperties": {
-                "location": {
-                  "type": "HttpServerLocation",
-                  "relativeUrl": {
-                    "value": "@concat('trip-data/yellow_tripdata_', formatDateTime(subtractFromTime(utcNow(), 2, 'Month'), 'yyyy-MM'), '.parquet')",
-                    "type": "Expression"
-                  }
-                }
+          "notebookId": "adf6e7ab-da36-4568-a5c4-6341e161f460",
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "parameters": {
+            "start_date": {
+              "value": {
+                "value": "@pipeline().parameters.StartDate",
+                "type": "Expression"
               },
-              "externalReferences": {
-                "connection": "6aa63666-3be9-4670-9f3c-eaf12b0b513e"
+              "type": "string"
+            },
+            "end_date": {
+              "value": {
+                "value": "@pipeline().parameters.EndDate",
+                "type": "Expression"
               },
-              "annotations": []
+              "type": "string"
             }
-          },
-          "sink": {
-            "type": "BinarySink",
-            "storeSettings": {
-              "type": "LakehouseWriteSettings"
-            },
-            "datasetSettings": {
-              "type": "Binary",
-              "typeProperties": {
-                "location": {
-                  "type": "LakehouseLocation",
-                  "folderPath": "bronze_taxi",
-                  "fileName": {
-                    "value": "@concat('yellow_tripdata_', formatDateTime(subtractFromTime(utcNow(), 2, 'Month'), 'yyyy-MM'), '.parquet')",
-                    "type": "Expression"
-                  }
-                }
-              },
-              "connectionSettings": {
-                "name": "lakehouse",
-                "properties": {
-                  "type": "Lakehouse",
-                  "typeProperties": {
-                    "artifactId": "73cfe98f-305c-bd53-452d-40aa3163ca5c",
-                    "workspaceId": "00000000-0000-0000-0000-000000000000",
-                    "rootFolder": "Files"
-                  },
-                  "externalReferences": {
-                    "connection": "a24e7faa-ce6b-41f9-a830-94792f9dc319"
-                  },
-                  "annotations": []
-                }
-              },
-              "annotations": []
-            }
-          },
-          "enableStaging": false
+          }
         },
         "policy": {
           "timeout": "0.12:00:00",
@@ -151,7 +131,24 @@
     ],
     "parameters": {
       "OpenAQApiKey": {
-        "type": "String"
+        "type": "String",
+        "defaultValue": ""
+      },
+      "KeyVaultUrl": {
+        "type": "String",
+        "defaultValue": ""
+      },
+      "OpenAQSecretName": {
+        "type": "String",
+        "defaultValue": "openaq-api-key"
+      },
+      "StartDate": {
+        "type": "String",
+        "defaultValue": "2024-01-01"
+      },
+      "EndDate": {
+        "type": "String",
+        "defaultValue": ""
       }
     }
   }

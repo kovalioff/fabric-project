@@ -24,15 +24,12 @@
 
 # MAGIC %%sql
 # MAGIC CREATE SCHEMA IF NOT EXISTS silver;
-# MAGIC 
+# MAGIC
 # MAGIC CREATE OR REPLACE TABLE silver.silver_gdp AS
-# MAGIC SELECT
-# MAGIC   CAST(date AS INT) AS year,
-# MAGIC   CAST(value AS DOUBLE) AS Value
+# MAGIC SELECT CAST(date AS INT) AS year, MAX(CAST(value AS DOUBLE)) AS Value
 # MAGIC FROM dbo.GDP
-# MAGIC WHERE value IS NOT NULL
-# MAGIC   AND date IS NOT NULL;
-
+# MAGIC WHERE CAST(value AS DOUBLE) > 0 AND date IS NOT NULL
+# MAGIC GROUP BY CAST(date AS INT);
 
 # METADATA ********************
 

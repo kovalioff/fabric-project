@@ -24,16 +24,10 @@
 
 # MAGIC %%sql
 # MAGIC CREATE SCHEMA IF NOT EXISTS gold;
-# MAGIC 
+# MAGIC
 # MAGIC CREATE OR REPLACE TABLE gold.DimFX AS
-# MAGIC SELECT 
-# MAGIC date_key AS DateID,
-# MAGIC usd_to_eur,
-# MAGIC CASE
-# MAGIC   WHEN usd_to_eur IS NOT NULL AND usd_to_eur <> 0 THEN ROUND(1 / usd_to_eur, 6)
-# MAGIC   ELSE NULL
-# MAGIC END AS eur_per_usd
-# MAGIC FROM silver.silver_ecb_fx
+# MAGIC SELECT date_key AS DateID, usd_per_eur, eur_per_usd, source_rate_date AS SourceRateDate
+# MAGIC FROM silver.silver_ecb_fx;
 
 # METADATA ********************
 

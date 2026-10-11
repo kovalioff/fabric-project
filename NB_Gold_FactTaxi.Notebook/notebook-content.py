@@ -24,34 +24,24 @@
 
 # MAGIC %%sql
 # MAGIC CREATE SCHEMA IF NOT EXISTS gold;
-# MAGIC 
+# MAGIC
 # MAGIC CREATE OR REPLACE TABLE gold.FactTaxiDaily AS
-# MAGIC WITH daily_fx AS (
-# MAGIC   SELECT
-# MAGIC     date_key AS DateID,
-# MAGIC     CASE
-# MAGIC       WHEN usd_to_eur IS NOT NULL AND usd_to_eur <> 0 THEN 1 / usd_to_eur
-# MAGIC       ELSE NULL
-# MAGIC     END AS eur_per_usd
-# MAGIC   FROM silver.silver_ecb_fx
+# MAGIC WITH daily AS (
+# MAGIC     SELECT pickup_date AS DateID, pickup_location_id AS ZoneID, COUNT(*) AS TotalTrips,
+# MAGIC         AVG(trip_distance_miles) AS AvgTripDistance,
+# MAGIC         AVG(fare_amount) AS AvgFarePerTrip, SUM(fare_amount) AS TotalFareAmount,
+# MAGIC         AVG(total_amount_usd) AS AvgRevenuePerTripUSD, SUM(total_amount_usd) AS TotalAmount
+# MAGIC     FROM silver.silver_taxi
+# MAGIC     GROUP BY pickup_date, pickup_location_id
 # MAGIC )
-# MAGIC SELECT 
-# MAGIC   t.pickup_date AS DateID,
-# MAGIC   t.pickup_location_id AS ZoneID,
-# MAGIC   COUNT(*) AS TotalTrips,
-# MAGIC   ROUND(AVG(t.trip_distance_miles), 2) AS AvgTripDistance,
-# MAGIC   ROUND(AVG(t.fare_amount), 2) AS AvgFarePerTrip,
-# MAGIC   ROUND(SUM(t.fare_amount), 2) AS TotalFareAmount,
-# MAGIC   ROUND(AVG(t.total_amount_usd), 2) AS AvgRevenuePerTripUSD,
-# MAGIC   ROUND(SUM(t.total_amount_usd), 2) AS TotalAmount,
-# MAGIC   ROUND(MAX(fx.eur_per_usd), 6) AS EurPerUsdRate,
-# MAGIC   ROUND(AVG(t.total_amount_usd) * MAX(fx.eur_per_usd), 2) AS AvgRevenuePerTripEUR,
-# MAGIC   ROUND(SUM(t.total_amount_usd) * MAX(fx.eur_per_usd), 2) AS TotalAmountEUR
-# MAGIC FROM silver.silver_taxi t
-# MAGIC LEFT JOIN daily_fx fx
-# MAGIC   ON t.pickup_date = fx.DateID
-# MAGIC WHERE t.pickup_location_id IS NOT NULL 
-# MAGIC GROUP BY t.pickup_date, t.pickup_location_id;
+# MAGIC SELECT t.DateID, t.ZoneID, t.TotalTrips, ROUND(t.AvgTripDistance, 2) AS AvgTripDistance,
+# MAGIC     ROUND(t.AvgFarePerTrip, 2) AS AvgFarePerTrip, t.TotalFareAmount,
+# MAGIC     ROUND(t.AvgRevenuePerTripUSD, 2) AS AvgRevenuePerTripUSD, t.TotalAmount,
+# MAGIC     fx.eur_per_usd AS EurPerUsdRate,
+# MAGIC     CAST(ROUND(t.AvgRevenuePerTripUSD * fx.eur_per_usd, 2) AS DECIMAL(18,2)) AS AvgRevenuePerTripEUR,
+# MAGIC     CAST(ROUND(t.TotalAmount * fx.eur_per_usd, 2) AS DECIMAL(20,2)) AS TotalAmountEUR
+# MAGIC FROM daily t
+# MAGIC LEFT JOIN gold.DimFX fx ON t.DateID = fx.DateID;
 
 # METADATA ********************
 

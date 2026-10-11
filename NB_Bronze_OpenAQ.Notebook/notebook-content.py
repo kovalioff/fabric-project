@@ -22,9 +22,11 @@
 
 # PARAMETERS CELL ********************
 
-# Default values are overridden by the pipeline activity parameters.
 openaq_api_key = ""
-history_days = "730"
+start_date = "2024-01-01"
+end_date = ""
+key_vault_url = ""
+secret_name = "openaq-api-key"
 page_limit = "1000"
 
 # METADATA ********************
@@ -36,14 +38,20 @@ page_limit = "1000"
 
 # CELL ********************
 
+import calendar
 import json
+import math
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, time as datetime_time, timedelta, timezone
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
+from zoneinfo import ZoneInfo
+
+import notebookutils
 
 from pyspark.sql.types import (
+    BooleanType,
     DateType,
     DoubleType,
     LongType,
@@ -53,46 +61,38 @@ from pyspark.sql.types import (
     TimestampType,
 )
 
-SUPPORTED_POLLUTANTS = {
-    "NO₂",
-    "NO",
-    "NOx",
-    "SO₂",
-    "CO",
-    "PM2.5",
-    "PM1",
-    "PM0.3 count",
-    "Temperature (C)",
-    "RH",
+POLLUTANTS = {
+    "no2": "NO₂", "no": "NO", "nox": "NOx", "so2": "SO₂", "co": "CO",
+    "pm25": "PM2.5", "pm10": "PM10", "pm1": "PM1", "o3": "O₃",
+    "pm03": "PM0.3 count", "um003": "PM0.3 count",
+    "temperature": "Temperature (C)", "relativehumidity": "RH",
+    "rh": "RH",
 }
 BASE_URL = "https://api.openaq.org"
 REQUEST_DELAY_SECONDS = 1.1
 
 
-def _read_argument(name: str, default: str) -> str:
-    try:
-        value = mssparkutils.notebook.getArgument(name, default)
-        if value not in (None, ""):
-            return value
-    except Exception:
-        pass
+page_limit = int(page_limit)
+if not 1 <= page_limit <= 1000:
+    raise ValueError("page_limit must be between 1 and 1000.")
 
-    try:
-        value = mssparkutils.notebook.params.get(name)
-        if value not in (None, ""):
-            return value
-    except Exception:
-        pass
+today = datetime.now(timezone.utc).date()
+month_number = today.year * 12 + today.month - 3
+latest_month = date(month_number // 12, month_number % 12 + 1, 1)
+latest_date = latest_month.replace(day=calendar.monthrange(latest_month.year, latest_month.month)[1])
+first_date = date.fromisoformat(start_date)
+last_date = date.fromisoformat(end_date) if end_date else latest_date
+if first_date < date(2015, 1, 1) or first_date > last_date or last_date > latest_date:
+    raise ValueError("Use a date range from 2015-01-01 through the last day of the month two months ago.")
 
-    return default
-
-
-openaq_api_key = _read_argument("openaq_api_key", openaq_api_key)
-history_days = int(_read_argument("history_days", history_days))
-page_limit = int(_read_argument("page_limit", page_limit))
-
+if not openaq_api_key and key_vault_url:
+    openaq_api_key = notebookutils.credentials.getSecret(key_vault_url, secret_name)
 if not openaq_api_key:
-    raise ValueError("OpenAQ API key was not provided to NB_Bronze_OpenAQ.")
+    raise ValueError("Provide an OpenAQ API key or a Key Vault URL.")
+
+nyc_timezone = ZoneInfo("America/New_York")
+query_from = datetime.combine(first_date, datetime_time.min, nyc_timezone).astimezone(timezone.utc).isoformat()
+query_to = datetime.combine(last_date + timedelta(days=1), datetime_time.min, nyc_timezone).astimezone(timezone.utc).isoformat()
 
 
 def _request_json(relative_path: str, query: dict[str, str | int]) -> dict:
@@ -155,20 +155,24 @@ def _fetch_locations() -> list[dict]:
             break
 
         for item in results:
+            if item.get("isMobile"):
+                continue
             coordinates = item.get("coordinates") or {}
+            if coordinates.get("latitude") is None or coordinates.get("longitude") is None:
+                continue
             sensors = item.get("sensors") or []
             for sensor in sensors:
                 parameter = sensor.get("parameter") or {}
-                pollutant_name = parameter.get("displayName")
-                if pollutant_name not in SUPPORTED_POLLUTANTS:
+                pollutant_name = POLLUTANTS.get(parameter.get("name", "").lower())
+                if pollutant_name is None:
                     continue
 
                 rows.append(
                     {
                         "LocationID": int(item["id"]),
                         "locality": item.get("locality"),
-                        "latitude": coordinates.get("latitude"),
-                        "longitude": coordinates.get("longitude"),
+                        "latitude": float(coordinates["latitude"]),
+                        "longitude": float(coordinates["longitude"]),
                         "SensorID": int(sensor["id"]),
                         "units": parameter.get("units"),
                         "pollutant_name": pollutant_name,
@@ -186,7 +190,6 @@ def _fetch_locations() -> list[dict]:
 
 def _fetch_sensor_days(sensor_id: int) -> list[dict]:
     rows = []
-    date_from = (datetime.now(timezone.utc) - timedelta(days=history_days)).strftime("%Y-%m-%dT%H:%M:%SZ")
     page = 1
 
     while True:
@@ -195,7 +198,8 @@ def _fetch_sensor_days(sensor_id: int) -> list[dict]:
             {
                 "limit": str(page_limit),
                 "page": str(page),
-                "date_from": date_from,
+                "date_from": query_from,
+                "date_to": query_to,
             },
         )
         results = payload.get("results", [])
@@ -207,13 +211,20 @@ def _fetch_sensor_days(sensor_id: int) -> list[dict]:
             dt_from = (period.get("datetimeFrom") or {}).get("utc")
             dt_to = (period.get("datetimeTo") or {}).get("utc")
             dt_from_parsed = _parse_utc(dt_from)
+            local_from = _parse_utc((period.get("datetimeFrom") or {}).get("local"))
+            if local_from is None or not first_date <= local_from.date() <= last_date:
+                continue
+            coverage = item.get("coverage") or {}
+            flags = item.get("flagInfo") or {}
             dt_to_parsed = _parse_utc(dt_to)
             rows.append(
                 {
-                    "value": item.get("value"),
+                    "value": float(item["value"]) if item.get("value") is not None else None,
+                    "coverage_percent": float(coverage["percentCoverage"]) if coverage.get("percentCoverage") is not None else None,
+                    "has_flags": bool(flags.get("hasFlags", False)),
                     "utc_timestamp": dt_from_parsed,
                     "utc_end_timestamp": dt_to_parsed,
-                    "measurement_date": dt_from_parsed.date() if dt_from_parsed else None,
+                    "measurement_date": local_from.date(),
                     "measurement_hour": dt_from_parsed.strftime("%H:%M:%S") if dt_from_parsed else None,
                     "hour_of_day": dt_from_parsed.hour if dt_from_parsed else None,
                 }
@@ -245,8 +256,6 @@ location_schema = StructType(
 )
 
 location_df = spark.createDataFrame(location_rows, schema=location_schema)
-spark.sql("DROP TABLE IF EXISTS dbo.raw_openaq_locations")
-location_df.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable("dbo.raw_openaq_locations")
 
 measurement_rows = []
 for index, row in enumerate(location_rows, start=1):
@@ -261,6 +270,14 @@ for index, row in enumerate(location_rows, start=1):
     if index % 10 == 0 or index == len(location_rows):
         print(f"Fetched OpenAQ daily history for {index}/{len(location_rows)} sensors.")
 
+if not any(
+    row["value"] is not None and math.isfinite(row["value"])
+    and row["utc_timestamp"] is not None and not row["has_flags"]
+    and row["coverage_percent"] is not None and row["coverage_percent"] >= 75
+    for row in measurement_rows
+):
+    raise RuntimeError("OpenAQ returned no usable measurements for the selected dates.")
+
 measurement_schema = StructType(
     [
         StructField("LocationID", LongType(), False),
@@ -271,6 +288,8 @@ measurement_schema = StructType(
         StructField("units", StringType(), True),
         StructField("pollutant_name", StringType(), True),
         StructField("value", DoubleType(), True),
+        StructField("coverage_percent", DoubleType(), True),
+        StructField("has_flags", BooleanType(), False),
         StructField("utc_timestamp", TimestampType(), True),
         StructField("utc_end_timestamp", TimestampType(), True),
         StructField("measurement_date", DateType(), True),
@@ -280,8 +299,9 @@ measurement_schema = StructType(
 )
 
 measurement_df = spark.createDataFrame(measurement_rows, schema=measurement_schema)
-spark.sql("DROP TABLE IF EXISTS dbo.raw_openaq_full")
 measurement_df.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable("dbo.raw_openaq_full")
+
+location_df.write.format("delta").mode("overwrite").option("overwriteSchema", "true").saveAsTable("dbo.raw_openaq_locations")
 
 print(
     f"Saved OpenAQ bronze tables: {len(location_rows)} location-sensor rows, "

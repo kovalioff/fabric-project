@@ -22,24 +22,16 @@
 
 # CELL ********************
 
-spark.sql("CREATE SCHEMA IF NOT EXISTS gold")
-
-if not spark.catalog.tableExists("silver.silver_taxi_zone_reference"):
-    raise ValueError(
-        "silver.silver_taxi_zone_reference was not found. "
-        "Run NB_Silver_OpenAQ_ZoneMapping before NB_Gold_DimZone."
-    )
-
-spark_dim_zone_df = (
-    spark.read.table("silver.silver_taxi_zone_reference")
-    .select("LocationID", "Borough", "Zone", "service_zone")
-    .dropDuplicates(["LocationID"])
-)
-spark_dim_zone_df.write.format("delta").mode("overwrite").saveAsTable("gold.DimZone")
+# MAGIC %%sql
+# MAGIC CREATE SCHEMA IF NOT EXISTS gold;
+# MAGIC
+# MAGIC CREATE OR REPLACE TABLE gold.DimZone AS
+# MAGIC SELECT CAST(LocationID AS INT) AS ZoneID, Borough, Zone, service_zone
+# MAGIC FROM silver.silver_taxi_zone_reference;
 
 # METADATA ********************
 
 # META {
-# META   "language": "python",
+# META   "language": "sparksql",
 # META   "language_group": "synapse_pyspark"
 # META }

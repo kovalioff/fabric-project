@@ -8,6 +8,22 @@
             "OpenAQApiKey": {
               "value": "@pipeline().parameters.OpenAQApiKey",
               "type": "Expression"
+            },
+            "KeyVaultUrl": {
+              "value": "@pipeline().parameters.KeyVaultUrl",
+              "type": "Expression"
+            },
+            "OpenAQSecretName": {
+              "value": "@pipeline().parameters.OpenAQSecretName",
+              "type": "Expression"
+            },
+            "StartDate": {
+              "value": "@pipeline().parameters.StartDate",
+              "type": "Expression"
+            },
+            "EndDate": {
+              "value": "@pipeline().parameters.EndDate",
+              "type": "Expression"
             }
           },
           "waitOnCompletion": true,
@@ -22,8 +38,8 @@
           "timeout": "0.12:00:00",
           "retry": 3,
           "retryIntervalInSeconds": 30,
-          "secureInput": false,
-          "secureOutput": false
+          "secureInput": true,
+          "secureOutput": true
         },
         "name": "Bronze",
         "dependsOn": []
@@ -31,7 +47,16 @@
       {
         "type": "InvokePipeline",
         "typeProperties": {
-          "parameters": {},
+          "parameters": {
+            "StartDate": {
+              "value": "@pipeline().parameters.StartDate",
+              "type": "Expression"
+            },
+            "EndDate": {
+              "value": "@pipeline().parameters.EndDate",
+              "type": "Expression"
+            }
+          },
           "waitOnCompletion": true,
           "workspaceId": "00000000-0000-0000-0000-000000000000",
           "pipelineId": "71be78f1-6c34-bf09-4986-fd86603145b3",
@@ -89,7 +114,24 @@
     ],
     "parameters": {
       "OpenAQApiKey": {
-        "type": "String"
+        "type": "String",
+        "defaultValue": ""
+      },
+      "KeyVaultUrl": {
+        "type": "String",
+        "defaultValue": ""
+      },
+      "OpenAQSecretName": {
+        "type": "String",
+        "defaultValue": "openaq-api-key"
+      },
+      "StartDate": {
+        "type": "String",
+        "defaultValue": "2024-01-01"
+      },
+      "EndDate": {
+        "type": "String",
+        "defaultValue": ""
       }
     }
   }

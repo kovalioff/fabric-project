@@ -21,7 +21,23 @@
         "type": "TridentNotebook",
         "typeProperties": {
           "notebookId": "5286d6fd-7c89-acc3-4a05-62fbc5e4c149",
-          "workspaceId": "00000000-0000-0000-0000-000000000000"
+          "workspaceId": "00000000-0000-0000-0000-000000000000",
+          "parameters": {
+            "start_date": {
+              "value": {
+                "value": "@pipeline().parameters.StartDate",
+                "type": "Expression"
+              },
+              "type": "string"
+            },
+            "end_date": {
+              "value": {
+                "value": "@pipeline().parameters.EndDate",
+                "type": "Expression"
+              },
+              "type": "string"
+            }
+          }
         },
         "policy": {
           "timeout": "0.12:00:00",
@@ -88,6 +104,16 @@
           }
         ]
       }
-    ]
+    ],
+    "parameters": {
+      "StartDate": {
+        "type": "String",
+        "defaultValue": "2024-01-01"
+      },
+      "EndDate": {
+        "type": "String",
+        "defaultValue": ""
+      }
+    }
   }
 }

@@ -24,14 +24,29 @@
 
 # MAGIC %%sql
 # MAGIC CREATE SCHEMA IF NOT EXISTS silver;
-# MAGIC 
+# MAGIC
 # MAGIC CREATE OR REPLACE TABLE silver.silver_ecb_fx AS
-# MAGIC SELECT DISTINCT
-# MAGIC CAST(TIME_PERIOD AS DATE) AS date_key,
-# MAGIC CAST(OBS_VALUE AS DOUBLE) AS usd_to_eur
-# MAGIC FROM dbo.ECB_FX
-# MAGIC WHERE TIME_PERIOD IS NOT NULL 
-# MAGIC AND OBS_VALUE IS NOT NULL;
+# MAGIC WITH rates AS (
+# MAGIC     SELECT CAST(TIME_PERIOD AS DATE) AS rate_date, MAX(CAST(OBS_VALUE AS DOUBLE)) AS usd_per_eur
+# MAGIC     FROM dbo.ECB_FX
+# MAGIC     WHERE TIME_PERIOD IS NOT NULL AND CAST(OBS_VALUE AS DOUBLE) > 0
+# MAGIC     GROUP BY CAST(TIME_PERIOD AS DATE)
+# MAGIC ), calendar AS (
+# MAGIC     SELECT EXPLODE(SEQUENCE(MIN(rate_date), GREATEST(MAX(rate_date), CURRENT_DATE()), INTERVAL 1 DAY)) AS date_key
+# MAGIC     FROM rates
+# MAGIC ), filled AS (
+# MAGIC     SELECT c.date_key,
+# MAGIC         LAST(r.usd_per_eur, TRUE) OVER (
+# MAGIC             ORDER BY c.date_key ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+# MAGIC         ) AS usd_per_eur,
+# MAGIC         LAST(r.rate_date, TRUE) OVER (
+# MAGIC             ORDER BY c.date_key ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+# MAGIC         ) AS source_rate_date
+# MAGIC     FROM calendar c
+# MAGIC     LEFT JOIN rates r ON c.date_key = r.rate_date
+# MAGIC )
+# MAGIC SELECT date_key, usd_per_eur, 1 / usd_per_eur AS eur_per_usd, source_rate_date
+# MAGIC FROM filled;
 
 # METADATA ********************
 

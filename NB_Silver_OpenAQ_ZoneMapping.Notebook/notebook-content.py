@@ -22,78 +22,74 @@
 
 # CELL ********************
 
-%pip install geopandas
+%pip install geopandas==1.0.1
 
-import urllib.request
-import geopandas as gpd
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
+# CELL ********************
+
 from pathlib import Path
-from shapely.geometry import Point
+from tempfile import TemporaryDirectory
+from urllib.request import Request, urlopen
 from zipfile import ZipFile
 
+import geopandas as gpd
+import pandas as pd
+from pyspark.sql.types import LongType, StructField, StructType
+
 spark.sql("CREATE SCHEMA IF NOT EXISTS silver")
+with TemporaryDirectory() as directory:
+    directory = Path(directory)
+    for filename in ("taxi_zones.zip", "taxi_zone_lookup.csv"):
+        url = f"https://d37ci6vzurychx.cloudfront.net/misc/{filename}"
+        request = Request(url, headers={"User-Agent": "fabric-project/1.0"})
+        with urlopen(request, timeout=60) as response:
+            (directory / filename).write_bytes(response.read())
+    with ZipFile(directory / "taxi_zones.zip") as archive:
+        archive.extractall(directory)
+    zones = gpd.read_file(next(directory.glob("**/*.shp"))).to_crs("EPSG:4326")
+    reference = pd.read_csv(directory / "taxi_zone_lookup.csv", keep_default_na=False)
 
-tmp_dir = Path("/tmp/taxi_zones")
-zip_path = tmp_dir / "taxi_zones.zip"
+if reference.empty or reference["LocationID"].duplicated().any():
+    raise ValueError("Taxi zone lookup must contain one row per LocationID.")
+if not {264, 265}.issubset(set(reference["LocationID"])):
+    raise ValueError("Taxi zone lookup is missing the special zones.")
 
-tmp_dir.mkdir(parents=True, exist_ok=True)
+stations = spark.read.table("dbo.raw_openaq_locations").select(
+    "LocationID", "latitude", "longitude"
+).distinct().toPandas()
+if stations.empty or stations["LocationID"].duplicated().any():
+    raise ValueError("OpenAQ station coordinates are missing or inconsistent.")
 
-opener = urllib.request.build_opener()
-opener.addheaders = [('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)')]
-urllib.request.install_opener(opener)
-urllib.request.urlretrieve("https://d37ci6vzurychx.cloudfront.net/misc/taxi_zones.zip", zip_path)
-
-with ZipFile(zip_path, "r") as archive:
-    archive.extractall(tmp_dir)
-
-shp_files = list(tmp_dir.glob("**/*.shp"))
-if not shp_files:
-    raise ValueError("Shapefile not found in the downloaded archive")
-shapefile_path = shp_files[0]
-
-gdf_zones = gpd.read_file(shapefile_path).to_crs("EPSG:4326")
-column_lookup = {column.lower(): column for column in gdf_zones.columns}
-required_columns = ["locationid", "borough", "zone", "service_zone"]
-missing_columns = [column for column in required_columns if column not in column_lookup]
-
-if missing_columns:
-    raise ValueError(
-        "Taxi zone shapefile is missing expected columns: "
-        + ", ".join(sorted(missing_columns))
-    )
-
-zone_reference = gdf_zones[
-    [
-        column_lookup["locationid"],
-        column_lookup["borough"],
-        column_lookup["zone"],
-        column_lookup["service_zone"],
-    ]
-].rename(
-    columns={
-        column_lookup["locationid"]: "LocationID",
-        column_lookup["borough"]: "Borough",
-        column_lookup["zone"]: "Zone",
-        column_lookup["service_zone"]: "service_zone",
-    }
+points = gpd.GeoDataFrame(
+    stations,
+    geometry=gpd.points_from_xy(stations["longitude"], stations["latitude"]),
+    crs="EPSG:4326",
 )
-zone_reference["LocationID"] = zone_reference["LocationID"].astype(int)
+polygons = zones[["LocationID", "geometry"]].rename(columns={"LocationID": "TaxiZoneID"})
+matched = gpd.sjoin(points, polygons, how="left", predicate="intersects")
+mapping = matched[["LocationID", "TaxiZoneID"]].dropna().drop_duplicates()
+if mapping.empty or mapping["LocationID"].duplicated().any():
+    raise ValueError("Station mapping is empty or a station matches several zones.")
 
-spark.createDataFrame(zone_reference).write.format("delta").mode("overwrite").saveAsTable(
-    "silver.silver_taxi_zone_reference"
-)
+mapping_rows = [(int(row.LocationID), int(row.TaxiZoneID)) for row in mapping.itertuples()]
+mapping_schema = StructType([
+    StructField("LocationID", LongType(), False),
+    StructField("TaxiZoneID", LongType(), False),
+])
+spark.createDataFrame(reference).write.format("delta").mode("overwrite").option(
+    "overwriteSchema", "true"
+).saveAsTable("silver.silver_taxi_zone_reference")
+spark.createDataFrame(mapping_rows, mapping_schema).write.format("delta").mode("overwrite").option(
+    "overwriteSchema", "true"
+).saveAsTable("silver.silver_openaq_zone_mapping")
 
-zone_polygons = gdf_zones.rename(columns={column_lookup["locationid"]: "TaxiZoneID"})
-openaq_df = spark.read.table("silver.silver_openaq_clean").select("LocationID", "latitude", "longitude").distinct().toPandas()
-
-geometry = [Point(xy) for xy in zip(openaq_df['longitude'], openaq_df['latitude'])]
-gdf_stations = gpd.GeoDataFrame(openaq_df, crs="EPSG:4326", geometry=geometry)
-
-mapped_stations = gpd.sjoin(gdf_stations, zone_polygons, how="left", predicate="within")
-final_mapping = mapped_stations[['LocationID', 'TaxiZoneID']].dropna(subset=['TaxiZoneID'])
-final_mapping['TaxiZoneID'] = final_mapping['TaxiZoneID'].astype(int)
-
-spark_mapping_df = spark.createDataFrame(final_mapping)
-spark_mapping_df.write.format("delta").mode("overwrite").saveAsTable("silver.silver_openaq_zone_mapping")
+print(f"Mapped {len(mapping)} of {len(stations)} OpenAQ stations to taxi zones.")
 
 # METADATA ********************
 

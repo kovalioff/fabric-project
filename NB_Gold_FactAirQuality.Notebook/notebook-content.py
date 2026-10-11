@@ -24,24 +24,26 @@
 
 # MAGIC %%sql
 # MAGIC CREATE SCHEMA IF NOT EXISTS gold;
-# MAGIC 
-# MAGIC CREATE OR REPLACE TABLE gold.FactAirQualityDaily AS 
-# MAGIC SELECT 
-# MAGIC aq.measurement_date AS DateID, 
-# MAGIC map.TaxiZoneID AS ZoneID, 
-# MAGIC ROUND(AVG(CASE WHEN aq.pollutant_name = 'NO₂' THEN aq.value END), 2) AS NO2, 
-# MAGIC ROUND(AVG(CASE WHEN aq.pollutant_name = 'NO' THEN aq.value END), 2) AS NO, 
-# MAGIC ROUND(AVG(CASE WHEN aq.pollutant_name = 'NOx' THEN aq.value END), 2) AS NOx, 
-# MAGIC ROUND(AVG(CASE WHEN aq.pollutant_name = 'SO₂' THEN aq.value END), 2) AS SO2, 
-# MAGIC ROUND(AVG(CASE WHEN aq.pollutant_name = 'CO' THEN aq.value END), 2) AS CO, 
-# MAGIC ROUND(AVG(CASE WHEN aq.pollutant_name = 'PM2.5' THEN aq.value END), 2) AS PM25, 
-# MAGIC ROUND(AVG(CASE WHEN aq.pollutant_name = 'PM1' THEN aq.value END), 2) AS PM1, 
-# MAGIC ROUND(AVG(CASE WHEN aq.pollutant_name = 'PM0.3 count' THEN aq.value END), 2) AS PM03_Count, 
-# MAGIC ROUND(AVG(CASE WHEN aq.pollutant_name = 'Temperature (C)' THEN aq.value END), 2) AS TemperatureC, 
-# MAGIC ROUND(AVG(CASE WHEN aq.pollutant_name = 'RH' THEN aq.value END), 2) AS HumidityRH 
-# MAGIC FROM silver.silver_openaq_clean aq 
-# MAGIC INNER JOIN silver.silver_openaq_zone_mapping map 
-# MAGIC ON aq.LocationID = map.LocationID 
+# MAGIC
+# MAGIC CREATE OR REPLACE TABLE gold.FactAirQualityDaily AS
+# MAGIC SELECT aq.measurement_date AS DateID, map.TaxiZoneID AS ZoneID,
+# MAGIC     ROUND(AVG(CASE WHEN aq.pollutant_name = 'NO₂' THEN aq.value END), 2) AS NO2,
+# MAGIC     ROUND(AVG(CASE WHEN aq.pollutant_name = 'NO' THEN aq.value END), 2) AS NO,
+# MAGIC     ROUND(AVG(CASE WHEN aq.pollutant_name = 'NOx' THEN aq.value END), 2) AS NOx,
+# MAGIC     ROUND(AVG(CASE WHEN aq.pollutant_name = 'SO₂' THEN aq.value END), 2) AS SO2,
+# MAGIC     ROUND(AVG(CASE WHEN aq.pollutant_name = 'CO' THEN aq.value END), 2) AS CO,
+# MAGIC     ROUND(AVG(CASE WHEN aq.pollutant_name = 'O₃' THEN aq.value END), 2) AS O3,
+# MAGIC     ROUND(AVG(CASE WHEN aq.pollutant_name = 'PM2.5' THEN aq.value END), 2) AS PM25,
+# MAGIC     ROUND(AVG(CASE WHEN aq.pollutant_name = 'PM10' THEN aq.value END), 2) AS PM10,
+# MAGIC     ROUND(AVG(CASE WHEN aq.pollutant_name = 'PM1' THEN aq.value END), 2) AS PM1,
+# MAGIC     ROUND(AVG(CASE WHEN aq.pollutant_name = 'PM0.3 count' THEN aq.value END), 2) AS PM03_Count,
+# MAGIC     ROUND(AVG(CASE WHEN aq.pollutant_name = 'Temperature (C)' THEN aq.value END), 2) AS TemperatureC,
+# MAGIC     ROUND(AVG(CASE WHEN aq.pollutant_name = 'RH' THEN aq.value END), 2) AS HumidityRH,
+# MAGIC     COUNT(DISTINCT aq.LocationID) AS StationCount,
+# MAGIC     COUNT(DISTINCT aq.SensorID) AS SensorCount,
+# MAGIC     ROUND(MIN(aq.coverage_percent), 2) AS MinCoveragePercent
+# MAGIC FROM silver.silver_openaq_clean aq
+# MAGIC INNER JOIN silver.silver_openaq_zone_mapping map ON aq.LocationID = map.LocationID
 # MAGIC GROUP BY aq.measurement_date, map.TaxiZoneID;
 
 # METADATA ********************
